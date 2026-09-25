@@ -1,0 +1,1 @@
+RED/GREEN verification workspace (cloud-only). Files under .github/workflows run the pingora brotli regression against pinned upstream main.
