@@ -1,0 +1,44 @@
+name: brotli-verify
+on:
+  workflow_dispatch:
+    inputs:
+      overlay_url:
+        description: "URL of brotli.rs to overlay onto pinned upstream main"
+        required: true
+        type: string
+      expect:
+        description: "red or green"
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout upstream pingora at pinned SHA
+        uses: actions/checkout@v4
+        with:
+          repository: cloudflare/pingora
+          ref: 4487f7b2ab50f159e4a2cf4f6a6b813f61bb6e19
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - name: Overlay brotli.rs
+        run: |
+          set -euo pipefail
+          curl -fsSL "${{ inputs.overlay_url }}" -o pingora-core/src/protocols/http/compression/brotli.rs
+          git diff --stat
+      - name: Run compression tests
+        run: |
+          set -euo pipefail
+          cargo test -p pingora-core --lib compression:: 2>&1 | tee brotli-test.log
+      - name: rustfmt check (touched file)
+        if: ${{ inputs.expect == 'green' }}
+        run: rustfmt --edition 2021 --check pingora-core/src/protocols/http/compression/brotli.rs
+      - name: clippy (brotli.rs scope)
+        if: ${{ inputs.expect == 'green' }}
+        run: |
+          set -euo pipefail
+          cargo clippy -p pingora-core --lib 2>&1 | tee clippy.log
+          ! grep -E "compression/brotli\.rs" clippy.log
